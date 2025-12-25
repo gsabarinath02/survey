@@ -16,7 +16,9 @@ import {
     QrCode,
     Shield,
     Activity,
-    GitBranch
+    GitBranch,
+    PieChart,
+    UserSearch
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -30,6 +32,8 @@ const navItems = [
     { href: '/admin/questions', label: 'Questions', icon: FileQuestion },
     { href: '/admin/versions', label: 'Versions', icon: GitBranch },
     { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+    { href: '/admin/analytics/questions', label: 'Question Stats', icon: PieChart },
+    { href: '/admin/respondents', label: 'Respondents', icon: UserSearch },
     { href: '/admin/sessions', label: 'Sessions', icon: Users },
     { href: '/admin/export', label: 'Export', icon: Download },
     { href: '/admin/distribution', label: 'Distribution', icon: QrCode },
