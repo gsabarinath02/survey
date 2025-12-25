@@ -366,9 +366,19 @@ export function SurveyContainer() {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to create session');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Session creation failed:', response.status, errorData);
+        throw new Error(errorData.error || 'Failed to create session');
+      }
 
       const data = await response.json();
+
+      if (!data.questions || data.questions.length === 0) {
+        console.error('No questions returned from API');
+        throw new Error('No questions available. Please contact administrator.');
+      }
+
       setSessionId(data.sessionId);
 
       // Randomize options if needed
@@ -387,7 +397,9 @@ export function SurveyContainer() {
       setPhase('survey');
     } catch (error) {
       console.error('Error starting session:', error);
-      setPhase('survey');
+      alert(error instanceof Error ? error.message : 'Failed to start survey. Please try again.');
+      // Stay on role selection instead of going to broken survey
+      setRole(null);
     } finally {
       setIsLoading(false);
     }
