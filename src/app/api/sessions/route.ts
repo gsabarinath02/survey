@@ -173,6 +173,8 @@ export async function GET(request: NextRequest) {
                 id: s.id,
                 role: s.role,
                 language: s.language,
+                participantName: s.participantName,
+                participantPhone: s.participantPhone,
                 startedAt: s.startedAt,
                 completedAt: s.completedAt,
                 responseTime: s.responseTime,

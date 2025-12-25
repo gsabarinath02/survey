@@ -20,6 +20,9 @@ interface Session {
     status: string;
     createdAt: string;
     completedAt: string | null;
+    participantName: string | null;
+    participantPhone: string | null;
+    responseCount: number;
     deviceInfo: Record<string, unknown> | null;
     responses: Array<{
         id: string;
@@ -169,6 +172,16 @@ export default function SessionsPage() {
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
+                                            <span className="text-white font-medium">
+                                                {session.participantName || 'Anonymous'}
+                                            </span>
+                                            {session.participantPhone && (
+                                                <span className="text-slate-400 text-sm">
+                                                    ({session.participantPhone})
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-1">
                                             <span className={clsx(
                                                 "px-2 py-0.5 rounded text-xs font-medium",
                                                 session.role === 'nurse'
@@ -183,16 +196,16 @@ export default function SessionsPage() {
                                             )}>
                                                 {(session.status || 'unknown').replace('_', ' ')}
                                             </span>
+                                            <span className="text-slate-500 text-xs">
+                                                {new Date(session.createdAt).toLocaleString()}
+                                            </span>
                                         </div>
-                                        <p className="text-slate-400 text-sm mt-1">
-                                            Started: {new Date(session.createdAt).toLocaleString()}
-                                        </p>
                                     </div>
                                 </div>
 
                                 <div className="flex items-center gap-4">
                                     <div className="text-right">
-                                        <p className="text-white font-medium">{session.responses?.length || 0}</p>
+                                        <p className="text-white font-medium">{session.responseCount || 0}</p>
                                         <p className="text-slate-500 text-xs">responses</p>
                                     </div>
                                     <div className="flex gap-2">
@@ -244,6 +257,15 @@ export default function SessionsPage() {
                         </div>
 
                         <div className="space-y-4">
+                            {/* Participant Info */}
+                            <div className="p-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-xl">
+                                <h3 className="text-lg font-semibold text-cyan-400 mb-2">Participant</h3>
+                                <p className="text-white text-xl font-medium">{selectedSession.participantName || 'Anonymous'}</p>
+                                {selectedSession.participantPhone && (
+                                    <p className="text-slate-300 mt-1">📱 {selectedSession.participantPhone}</p>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="p-3 bg-slate-700/30 rounded-lg">
                                     <p className="text-slate-400 text-sm">Role</p>
