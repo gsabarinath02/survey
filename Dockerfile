@@ -64,9 +64,14 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# Copy startup script and migrations
+COPY --from=builder /app/prisma/migrations ./prisma/migrations
+COPY start.sh ./start.sh
+RUN chmod +x start.sh
+
 # Health check to ensure container is responding
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
-# Start the server
-CMD ["node", "server.js"]
+# Start the server with migrations
+CMD ["./start.sh"]
