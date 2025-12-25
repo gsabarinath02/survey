@@ -1,36 +1,141 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Nurse Copilot Survey Platform
 
-## Getting Started
+A comprehensive survey platform for validating the AI Nurse Copilot concept with adaptive questionnaires for nurses and doctors.
 
-First, run the development server:
+## 🚀 Features
+
+- **Role-based Surveys**: Separate comprehensive questionnaires for nurses (56 questions) and doctors (39 questions)
+- **Conditional Logic**: Questions appear/hide based on previous answers
+- **Beautiful UI**: Dark theme with glassmorphism effects, mobile-first responsive design
+- **Admin Dashboard**: Complete management interface with analytics
+- **Docker Ready**: Production-ready containerized deployment
+
+## 📋 Tech Stack
+
+- **Framework**: Next.js 16
+- **Database**: SQLite with Prisma ORM
+- **Styling**: Tailwind CSS
+- **Animation**: Framer Motion
+- **Icons**: Lucide React
+
+## 🛠️ Quick Start
+
+### Development
 
 ```bash
+# Install dependencies
+npm install
+
+# Generate Prisma client
+npx prisma generate
+
+# Push database schema
+npx prisma db push
+
+# Seed the database
+npx tsx prisma/seed.ts
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit [http://localhost:3000](http://localhost:3000) for the survey and [http://localhost:3000/admin](http://localhost:3000/admin) for the admin panel.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Admin Login
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Default Password**: `admin123`
 
-## Learn More
+## 🐳 Docker Deployment
 
-To learn more about Next.js, take a look at the following resources:
+### Build and Run
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# Build the image
+docker-compose build
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Start the container
+docker-compose up -d
 
-## Deploy on Vercel
+# Seed the database (first time only)
+docker-compose exec survey-app npx prisma db push
+docker-compose exec survey-app npx tsx prisma/seed.ts
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Environment Variables
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Create a `.env` file or pass via docker-compose:
+
+```env
+DATABASE_URL=file:./data/survey.db
+ADMIN_PASSWORD=your-secure-password
+TOKEN_SECRET=your-secret-key
+```
+
+## 📁 Project Structure
+
+```
+nurse-survey/
+├── src/
+│   ├── app/
+│   │   ├── admin/          # Admin dashboard pages
+│   │   │   ├── login/      # Admin login
+│   │   │   ├── questions/  # Question management
+│   │   │   ├── analytics/  # Survey analytics
+│   │   │   ├── sessions/   # Session viewer
+│   │   │   └── settings/   # App settings
+│   │   ├── api/            # API routes
+│   │   └── page.tsx        # Main survey page
+│   ├── components/
+│   │   └── survey/         # Survey UI components
+│   └── lib/                # Utilities and types
+├── prisma/
+│   ├── schema.prisma       # Database schema
+│   └── seed.ts            # Question data
+├── Dockerfile             # Production build
+└── docker-compose.yml     # Container orchestration
+```
+
+## 📊 Admin Dashboard
+
+The admin panel includes:
+
+- **Dashboard**: Overview with stats and recent activity
+- **Questions**: List, search, filter, edit, and delete questions
+- **Analytics**: Response statistics and visualizations
+- **Sessions**: View and export survey responses
+- **Settings**: Password management and database operations
+
+## 🔧 API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/questions` | GET | List all questions |
+| `/api/questions` | POST | Create a question |
+| `/api/questions/[id]` | PUT | Update a question |
+| `/api/questions/[id]` | DELETE | Delete a question |
+| `/api/sessions` | GET | List sessions |
+| `/api/sessions` | POST | Create a session |
+| `/api/sessions/[id]` | PATCH | Complete a session |
+| `/api/responses` | POST | Submit a response |
+| `/api/analytics` | GET | Get analytics data |
+| `/api/admin/auth` | POST | Admin login |
+
+## 📱 Survey Flow
+
+1. **Role Selection**: User selects Nurse or Doctor
+2. **Survey Questions**: Adaptive questions based on role and previous answers
+3. **Progress Tracking**: Visual progress bar and section indicators
+4. **Completion**: Celebration screen with statistics
+
+## 🔒 Security Notes
+
+For production deployment:
+
+1. Change the default admin password
+2. Use a strong TOKEN_SECRET
+3. Enable HTTPS (use reverse proxy like nginx)
+4. Regular database backups
+
+## 📄 License
+
+MIT License

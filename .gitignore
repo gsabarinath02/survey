@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+nurse-survey-docker.tar
+dev.db
+dev.db.backup
+prisma/dev.db

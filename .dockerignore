@@ -1,0 +1,50 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Build outputs
+.next
+out
+build
+dist
+
+# Development
+.git
+.gitignore
+*.md
+!README.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+__tests__
+*.test.*
+*.spec.*
+coverage
+
+# Development configs
+.env.local
+.env.development
+.env.test
+
+# Prisma migrations (we'll run fresh)
+prisma/migrations
+
+# Temporary files
+*.log
+*.tmp
+.cache
+
+# Development database files
+dev.db
+dev.db-journal
+dev.db.backup
+*.db.backup

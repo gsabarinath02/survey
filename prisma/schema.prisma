@@ -1,0 +1,246 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Question model - stores all survey questions
+model Question {
+  id           String   @id @default(cuid())
+  externalId   String   @unique // Human-readable ID like "nurse_consent_1"
+  role         String   // 'nurse' | 'doctor' | 'both'
+  section      String   // Section name
+  sectionOrder Int      // Order of section (for sorting)
+  order        Int      // Order within section
+  text         String   // Question text
+  subText      String?  // Optional helper text/examples
+  type         String   // Question type: choice, multi-choice, text, textarea, slider, boolean, likert, ranking
+  options      String?  // JSON array of options for choice questions
+  required     Boolean  @default(true)
+  isActive     Boolean  @default(true) // For soft-delete/disable
+  conditions   String?  // JSON array of conditions for conditional logic
+  config       String?  // JSON object for type-specific config (min, max, labels)
+  version      Int      @default(1)
+  randomize    Boolean  @default(false) // Randomize options order
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  responses    Response[]
+  versions     QuestionVersion[]
+  
+  @@index([role])
+  @@index([section])
+  @@index([isActive])
+}
+
+// Question versioning - tracks all changes to questions
+model QuestionVersion {
+  id          String   @id @default(cuid())
+  questionId  String
+  version     Int
+  text        String
+  subText     String?
+  options     String?
+  config      String?
+  conditions  String?
+  createdAt   DateTime @default(now())
+  createdBy   String?  // AdminUser id who made the change
+  
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  @@unique([questionId, version])
+  @@index([questionId])
+}
+
+// Survey session - tracks a single survey completion attempt
+model SurveySession {
+  id               String    @id @default(cuid())
+  role             String    // 'nurse' | 'doctor'
+  participantName  String?   // User's name (for personalization)
+  participantPhone String?   // Phone number (for identification)
+  participantHash  String?   // Hash of name+phone for deduplication
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  deviceInfo       String?   // JSON with browser/device info
+  ipHash           String?   // Hashed IP for uniqueness (not stored raw)
+  fingerprint      String?   // Device fingerprint hash
+  language         String    @default("en") // Selected language
+  sourceCode       String?   // Distribution link code
+  responseTime     Int?      // Total time in seconds
+  isValid          Boolean   @default(true) // For flagging suspicious submissions
+  
+  responses        Response[]
+  snapshot         SurveySnapshot?
+  
+  @@index([role])
+  @@index([startedAt])
+  @@index([completedAt])
+  @@index([fingerprint])
+  @@index([sourceCode])
+  @@index([participantHash])
+}
+
+// Survey snapshot - locks questions at session creation for data integrity
+model SurveySnapshot {
+  id            String   @id @default(cuid())
+  sessionId     String   @unique
+  questionsJson String   // JSON array of question snapshots
+  createdAt     DateTime @default(now())
+  
+  session       SurveySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// Response - individual question responses
+model Response {
+  id           String   @id @default(cuid())
+  sessionId    String
+  questionId   String
+  value        String   // JSON value (can be string, array, number)
+  recordedAt   DateTime @default(now())
+  timeTaken    Int?     // Seconds spent on this question
+  
+  session      SurveySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question     Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  audio        AudioRecording?
+  
+  @@unique([sessionId, questionId])
+  @@index([sessionId])
+  @@index([questionId])
+}
+
+// Audio recordings for voice responses
+model AudioRecording {
+  id          String   @id @default(cuid())
+  responseId  String   @unique
+  audioData   String   // Base64 encoded audio
+  duration    Int      // Duration in seconds
+  confidence  Float?   // ASR confidence score 0-1
+  language    String?  // Detected or selected language
+  transcript  String?  // Original transcript if different from value
+  createdAt   DateTime @default(now())
+  
+  response    Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+}
+
+// Admin user for authentication with RBAC
+model AdminUser {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String?   @unique
+  passwordHash String    // bcrypt hashed password
+  role         String    @default("viewer") // viewer, editor, admin
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+  
+  sessions     AdminSession[]
+  auditLogs    AuditLog[]
+}
+
+// Admin sessions for token management
+model AdminSession {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  expiresAt   DateTime
+  userAgent   String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  
+  user        AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([token])
+  @@index([userId])
+}
+
+// Audit log for tracking admin actions
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String   // create, update, delete, export, login
+  resource    String   // question, session, user, settings
+  resourceId  String?
+  details     String?  // JSON with additional info
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  
+  user        AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Device fingerprinting for duplicate detection
+model DeviceFingerprint {
+  id           String   @id @default(cuid())
+  fingerprint  String   @unique
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+  sessionCount Int      @default(1)
+  isFlagged    Boolean  @default(false)
+  
+  @@index([fingerprint])
+}
+
+// Translation support for multi-language
+model Translation {
+  id       String @id @default(cuid())
+  key      String // e.g., "question:nurse_consent_1" or "ui:next_button"
+  locale   String // en, hi, ta, ml
+  value    String
+  
+  @@unique([key, locale])
+  @@index([locale])
+}
+
+// Distribution tracking for QR codes and unique links
+model DistributionLink {
+  id           String    @id @default(cuid())
+  code         String    @unique
+  name         String
+  description  String?
+  source       String?   // email, qr, sms, poster
+  targetRole   String?   // nurse, doctor, or null for all
+  expiresAt    DateTime?
+  maxSessions  Int?      // Optional limit
+  clickCount   Int       @default(0)
+  sessionCount Int       @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  createdBy    String?   // AdminUser id
+  
+  @@index([code])
+  @@index([isActive])
+}
+
+// Quota management for recruitment targets
+model Quota {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  field        String   // role, nurse_hospital_type, nurse_department, etc.
+  value        String   // The value to match
+  targetCount  Int
+  currentCount Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  
+  @@unique([field, value])
+}
+
+// Saved survey progress for session recovery
+model SavedProgress {
+  id          String   @id @default(cuid())
+  sessionId   String   @unique
+  answers     String   // JSON of current answers
+  currentIdx  Int      // Current question index
+  updatedAt   DateTime @default(now())
+  
+  @@index([sessionId])
+}

@@ -1,0 +1,31 @@
+{
+    "name": "Nurse Pulse Check",
+    "short_name": "Nurse Survey",
+    "description": "AI Nurse Copilot Survey Platform - Voice of the Nurse",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0f172a",
+    "theme_color": "#06b6d4",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "maskable"
+        }
+    ],
+    "categories": [
+        "medical",
+        "health",
+        "productivity"
+    ],
+    "lang": "en",
+    "dir": "ltr"
+}
