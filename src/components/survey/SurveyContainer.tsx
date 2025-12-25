@@ -184,6 +184,39 @@ export function SurveyContainer() {
   // Current question
   const currentQuestion = visibleQuestions[currentIndex];
 
+  // Helper function to check if an answer is valid (not empty)
+  const isAnswerValid = useCallback((answer: unknown): boolean => {
+    if (answer === undefined || answer === null) return false;
+    if (typeof answer === 'string') return answer.trim().length > 0;
+    if (typeof answer === 'boolean') return true;
+    if (typeof answer === 'number') return true;
+    if (Array.isArray(answer)) return answer.length > 0;
+    if (typeof answer === 'object') {
+      // Handle AnswerWithOther type
+      const obj = answer as { selected?: unknown; otherText?: string };
+      if ('selected' in obj) {
+        const selected = obj.selected;
+        // If "Other" is selected, check if otherText is provided
+        if (selected === 'Other' || (Array.isArray(selected) && selected.includes('Other'))) {
+          return (obj.otherText?.trim().length || 0) > 0;
+        }
+        return isAnswerValid(selected);
+      }
+    }
+    return false;
+  }, []);
+
+  // Check if the current question can be skipped (is optional)
+  const canProceed = useMemo(() => {
+    if (!currentQuestion) return false;
+    // Info type questions don't need answers
+    if (currentQuestion.type === 'info') return true;
+    // Optional questions can always proceed
+    if (!currentQuestion.required) return true;
+    // Required questions need a valid answer
+    return isAnswerValid(answers[currentQuestion.id]);
+  }, [currentQuestion, answers, isAnswerValid]);
+
   // Piping: Replace {{questionId}} placeholders with previous answers
   const processedCurrentQuestion = useMemo(() => {
     if (!currentQuestion) return null;
@@ -482,6 +515,15 @@ export function SurveyContainer() {
 
   // Navigate to next question
   const handleNext = useCallback(async () => {
+    // Validate required questions before proceeding
+    if (currentQuestion && currentQuestion.required && currentQuestion.type !== 'info') {
+      const answer = answers[currentQuestion.id];
+      if (!isAnswerValid(answer)) {
+        // Don't proceed if required question is not answered
+        return;
+      }
+    }
+
     if (currentIndex < visibleQuestions.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
@@ -534,7 +576,7 @@ export function SurveyContainer() {
       clearProgress();
       setPhase('completed');
     }
-  }, [currentIndex, visibleQuestions.length, sessionId, startTime, offline]);
+  }, [currentIndex, visibleQuestions.length, sessionId, startTime, offline, currentQuestion, answers, isAnswerValid]);
 
   // Navigate to previous question
   const handlePrevious = useCallback(() => {

@@ -340,10 +340,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
               <motion.button
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 onClick={onNext}
-                disabled={showOtherInput && !otherText.trim()}
+                disabled={(showOtherInput && !otherText.trim()) || (question.required && (!Array.isArray(answerValue) || answerValue.length === 0))}
                 className="mt-6 w-full bg-slate-100 disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 font-bold py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-base shadow-lg shadow-white/10"
               >
-                Continue <ArrowRight size={18} />
+                {question.required ? 'Continue' : 'Continue (Optional)'} <ArrowRight size={18} />
               </motion.button>
             </div>
           )}
@@ -421,9 +421,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
               </div>
               <button
                 onClick={onNext}
-                className="w-full bg-slate-100 text-slate-900 font-bold py-4 rounded-xl transition-all active:scale-95 shadow-lg shadow-white/10"
+                disabled={question.required && answerValue === undefined}
+                className="w-full bg-slate-100 disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 font-bold py-4 rounded-xl transition-all active:scale-95 shadow-lg shadow-white/10"
               >
-                Confirm
+                {question.required ? 'Confirm' : 'Confirm (Optional)'}
               </button>
             </div>
           )}
