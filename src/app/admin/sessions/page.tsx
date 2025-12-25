@@ -10,11 +10,29 @@ import {
     Eye,
     Trash2,
     Download,
-    Filter
+    Loader2,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
-interface Session {
+interface ResponseDetail {
+    id: string;
+    questionId: string;
+    externalId: string;
+    questionText: string;
+    questionSubText?: string;
+    section: string;
+    sectionOrder: number;
+    order: number;
+    type: string;
+    options: string[] | null;
+    value: unknown;
+    timeTaken: number | null;
+    recordedAt: string;
+}
+
+interface SessionListItem {
     id: string;
     role: string;
     status: string;
@@ -23,20 +41,37 @@ interface Session {
     participantName: string | null;
     participantPhone: string | null;
     responseCount: number;
+}
+
+interface SessionDetail {
+    id: string;
+    role: string;
+    language: string;
+    startedAt: string;
+    completedAt: string | null;
+    responseTime: number | null;
+    isValid: boolean;
+    sourceCode: string | null;
     deviceInfo: Record<string, unknown> | null;
-    responses: Array<{
-        id: string;
-        questionId: string;
-        value: unknown;
-    }>;
+    participantName?: string | null;
+    participantPhone?: string | null;
+}
+
+interface SectionGroup {
+    name: string;
+    order: number;
+    responses: ResponseDetail[];
 }
 
 export default function SessionsPage() {
-    const [sessions, setSessions] = useState<Session[]>([]);
+    const [sessions, setSessions] = useState<SessionListItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [roleFilter, setRoleFilter] = useState<string>('all');
-    const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+    const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null);
+    const [selectedResponses, setSelectedResponses] = useState<ResponseDetail[]>([]);
+    const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+    const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         fetchSessions();
@@ -56,6 +91,31 @@ export default function SessionsPage() {
         }
     };
 
+    const handleViewSession = async (sessionId: string) => {
+        setIsLoadingDetails(true);
+        try {
+            const res = await fetch(`/api/sessions/${sessionId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setSelectedSession(data.session);
+                setSelectedResponses(data.responses || []);
+                // Expand all sections by default
+                const sectionNames = new Set(data.responses?.map((r: ResponseDetail) => r.section) || []);
+                setExpandedSections(sectionNames as Set<string>);
+            }
+        } catch (error) {
+            console.error('Error fetching session details:', error);
+        } finally {
+            setIsLoadingDetails(false);
+        }
+    };
+
+    const handleCloseModal = () => {
+        setSelectedSession(null);
+        setSelectedResponses([]);
+        setExpandedSections(new Set());
+    };
+
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this session and all its responses?')) return;
 
@@ -63,7 +123,7 @@ export default function SessionsPage() {
             const res = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 setSessions(sessions.filter(s => s.id !== id));
-                if (selectedSession?.id === id) setSelectedSession(null);
+                if (selectedSession?.id === id) handleCloseModal();
             }
         } catch (error) {
             console.error('Error deleting session:', error);
@@ -90,6 +150,51 @@ export default function SessionsPage() {
         }
     };
 
+    const toggleSection = (sectionName: string) => {
+        setExpandedSections(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(sectionName)) {
+                newSet.delete(sectionName);
+            } else {
+                newSet.add(sectionName);
+            }
+            return newSet;
+        });
+    };
+
+    const formatValue = (value: unknown, type: string): string => {
+        if (value === null || value === undefined) return '—';
+
+        if (Array.isArray(value)) {
+            return value.join(', ');
+        }
+
+        if (type === 'boolean') {
+            return value === true ? 'Yes' : value === false ? 'No' : String(value);
+        }
+
+        if (type === 'likert' || type === 'slider') {
+            return `${value}`;
+        }
+
+        return String(value);
+    };
+
+    // Group responses by section
+    const groupedResponses = selectedResponses.reduce((acc, response) => {
+        if (!acc[response.section]) {
+            acc[response.section] = {
+                name: response.section,
+                order: response.sectionOrder,
+                responses: []
+            };
+        }
+        acc[response.section].responses.push(response);
+        return acc;
+    }, {} as Record<string, SectionGroup>);
+
+    const sortedSections = Object.values(groupedResponses).sort((a, b) => a.order - b.order);
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -108,7 +213,6 @@ export default function SessionsPage() {
                 </div>
                 <button
                     onClick={() => {
-                        // Export all sessions as JSON
                         const dataStr = JSON.stringify(sessions, null, 2);
                         const blob = new Blob([dataStr], { type: 'application/json' });
                         const url = URL.createObjectURL(blob);
@@ -210,7 +314,7 @@ export default function SessionsPage() {
                                     </div>
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => setSelectedSession(session)}
+                                            onClick={() => handleViewSession(session.id)}
                                             className="p-2 text-slate-400 hover:text-cyan-400 transition-colors"
                                             title="View details"
                                         >
@@ -239,72 +343,151 @@ export default function SessionsPage() {
             </div>
 
             {/* Session Detail Modal */}
-            {selectedSession && (
+            {(selectedSession || isLoadingDetails) && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto"
+                        className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-3xl max-h-[85vh] overflow-y-auto"
                     >
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-white">Session Details</h2>
-                            <button
-                                onClick={() => setSelectedSession(null)}
-                                className="text-slate-400 hover:text-white"
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            {/* Participant Info */}
-                            <div className="p-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-xl">
-                                <h3 className="text-lg font-semibold text-cyan-400 mb-2">Participant</h3>
-                                <p className="text-white text-xl font-medium">{selectedSession.participantName || 'Anonymous'}</p>
-                                {selectedSession.participantPhone && (
-                                    <p className="text-slate-300 mt-1">📱 {selectedSession.participantPhone}</p>
-                                )}
+                        {isLoadingDetails ? (
+                            <div className="flex items-center justify-center py-12">
+                                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
                             </div>
+                        ) : selectedSession && (
+                            <>
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-xl font-bold text-white">Session Details</h2>
+                                    <button
+                                        onClick={handleCloseModal}
+                                        className="text-slate-400 hover:text-white text-xl"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-3 bg-slate-700/30 rounded-lg">
-                                    <p className="text-slate-400 text-sm">Role</p>
-                                    <p className="text-white font-medium capitalize">{selectedSession.role}</p>
-                                </div>
-                                <div className="p-3 bg-slate-700/30 rounded-lg">
-                                    <p className="text-slate-400 text-sm">Status</p>
-                                    <p className="text-white font-medium capitalize">{(selectedSession.status || 'unknown').replace('_', ' ')}</p>
-                                </div>
-                                <div className="p-3 bg-slate-700/30 rounded-lg">
-                                    <p className="text-slate-400 text-sm">Started</p>
-                                    <p className="text-white font-medium">{new Date(selectedSession.createdAt).toLocaleString()}</p>
-                                </div>
-                                <div className="p-3 bg-slate-700/30 rounded-lg">
-                                    <p className="text-slate-400 text-sm">Completed</p>
-                                    <p className="text-white font-medium">
-                                        {selectedSession.completedAt
-                                            ? new Date(selectedSession.completedAt).toLocaleString()
-                                            : '—'}
-                                    </p>
-                                </div>
-                            </div>
+                                <div className="space-y-6">
+                                    {/* Participant Info */}
+                                    <div className="p-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-xl">
+                                        <h3 className="text-lg font-semibold text-cyan-400 mb-2">Participant</h3>
+                                        <p className="text-white text-xl font-medium">{selectedSession.participantName || 'Anonymous'}</p>
+                                        {selectedSession.participantPhone && (
+                                            <p className="text-slate-300 mt-1">📱 {selectedSession.participantPhone}</p>
+                                        )}
+                                    </div>
 
-                            <div>
-                                <h3 className="text-lg font-semibold text-white mb-3">Responses ({selectedSession.responses?.length || 0})</h3>
-                                <div className="space-y-2 max-h-64 overflow-y-auto">
-                                    {selectedSession.responses?.map((response, idx) => (
-                                        <div key={response.id} className="p-3 bg-slate-700/30 rounded-lg">
-                                            <p className="text-slate-400 text-xs mb-1">Question {idx + 1}</p>
-                                            <p className="text-white text-sm">
-                                                {typeof response.value === 'object'
-                                                    ? JSON.stringify(response.value)
-                                                    : String(response.value)}
+                                    {/* Session Meta */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="p-3 bg-slate-700/30 rounded-lg">
+                                            <p className="text-slate-400 text-sm">Role</p>
+                                            <p className="text-white font-medium capitalize">{selectedSession.role}</p>
+                                        </div>
+                                        <div className="p-3 bg-slate-700/30 rounded-lg">
+                                            <p className="text-slate-400 text-sm">Status</p>
+                                            <p className={clsx(
+                                                "font-medium capitalize",
+                                                selectedSession.completedAt ? "text-emerald-400" : "text-amber-400"
+                                            )}>
+                                                {selectedSession.completedAt ? 'Completed' : 'In Progress'}
                                             </p>
                                         </div>
-                                    ))}
+                                        <div className="p-3 bg-slate-700/30 rounded-lg">
+                                            <p className="text-slate-400 text-sm">Started</p>
+                                            <p className="text-white font-medium text-sm">{new Date(selectedSession.startedAt).toLocaleString()}</p>
+                                        </div>
+                                        <div className="p-3 bg-slate-700/30 rounded-lg">
+                                            <p className="text-slate-400 text-sm">Completed</p>
+                                            <p className="text-white font-medium text-sm">
+                                                {selectedSession.completedAt
+                                                    ? new Date(selectedSession.completedAt).toLocaleString()
+                                                    : '—'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Response Time */}
+                                    {selectedSession.responseTime && (
+                                        <div className="p-3 bg-slate-700/30 rounded-lg inline-block">
+                                            <p className="text-slate-400 text-sm">Total Time</p>
+                                            <p className="text-white font-medium">
+                                                {Math.floor(selectedSession.responseTime / 60)} min {selectedSession.responseTime % 60} sec
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Responses by Section */}
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-white mb-4">
+                                            Responses ({selectedResponses.length})
+                                        </h3>
+
+                                        {sortedSections.length === 0 ? (
+                                            <div className="text-center py-8 text-slate-500">
+                                                <p>No responses recorded</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {sortedSections.map((section) => (
+                                                    <div key={section.name} className="border border-slate-700 rounded-xl overflow-hidden">
+                                                        <button
+                                                            onClick={() => toggleSection(section.name)}
+                                                            className="w-full flex items-center justify-between p-4 bg-slate-700/30 hover:bg-slate-700/50 transition-colors"
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                {expandedSections.has(section.name) ? (
+                                                                    <ChevronDown className="w-5 h-5 text-cyan-400" />
+                                                                ) : (
+                                                                    <ChevronRight className="w-5 h-5 text-slate-400" />
+                                                                )}
+                                                                <span className="text-white font-medium">{section.name}</span>
+                                                            </div>
+                                                            <span className="text-slate-400 text-sm">
+                                                                {section.responses.length} questions
+                                                            </span>
+                                                        </button>
+
+                                                        {expandedSections.has(section.name) && (
+                                                            <div className="p-4 space-y-3 bg-slate-800/50">
+                                                                {section.responses.sort((a, b) => a.order - b.order).map((response, idx) => (
+                                                                    <div key={response.id} className="p-4 bg-slate-700/20 rounded-lg border border-slate-700/50">
+                                                                        <div className="flex items-start justify-between gap-4">
+                                                                            <div className="flex-1">
+                                                                                <p className="text-slate-400 text-xs mb-1">
+                                                                                    Q{idx + 1} • {response.type}
+                                                                                    {response.timeTaken && (
+                                                                                        <span className="ml-2 text-cyan-400">
+                                                                                            ({response.timeTaken}s)
+                                                                                        </span>
+                                                                                    )}
+                                                                                </p>
+                                                                                <p className="text-white text-sm font-medium mb-2">
+                                                                                    {response.questionText}
+                                                                                </p>
+                                                                                {response.questionSubText && (
+                                                                                    <p className="text-slate-500 text-xs mb-2">
+                                                                                        {response.questionSubText}
+                                                                                    </p>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="mt-2 p-3 bg-slate-900/50 rounded-lg">
+                                                                            <p className="text-slate-400 text-xs mb-1">Answer:</p>
+                                                                            <p className="text-cyan-300 font-medium">
+                                                                                {formatValue(response.value, response.type)}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
+                            </>
+                        )}
                     </motion.div>
                 </div>
             )}

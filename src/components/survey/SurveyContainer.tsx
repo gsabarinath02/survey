@@ -11,7 +11,7 @@ import { AlreadyCompleted } from './AlreadyCompleted';
 import { ArrowLeft, Loader2, Globe, WifiOff } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generateFingerprint } from '@/lib/fingerprint';
-import { saveProgress, loadProgress, clearProgress, queueResponse, syncPendingResponses, isOffline, setupOnlineSync } from '@/lib/storage';
+import { saveProgress, loadProgress, clearProgress, queueResponse, syncPendingResponses, isOffline, setupOnlineSync, markResponseSynced } from '@/lib/storage';
 import { SUPPORTED_LOCALES, getLocale, setLocale, t, type Locale } from '@/lib/i18n';
 
 interface Question {
@@ -237,29 +237,57 @@ export function SurveyContainer() {
   }, []);
 
   // Resume saved progress
-  const handleResumeProgress = useCallback(() => {
+  const handleResumeProgress = useCallback(async () => {
     if (savedProgress) {
-      setRole(savedProgress.role);
-      setSessionId(savedProgress.sessionId);
-      setAnswers(savedProgress.answers);
-      setCurrentIndex(savedProgress.currentIndex);
-      setLanguage(savedProgress.language as Locale);
-
-      // Reload questions for the role
       setIsLoading(true);
-      fetch(`/api/sessions/${savedProgress.sessionId}`)
-        .then(res => res.json())
-        .then(data => {
-          // Questions should be in snapshot, but we need to fetch them
-          // For now, create a new session
-          setPhase('survey');
-        })
-        .catch(() => {
+
+      try {
+        // Use the /resume endpoint to get questions and previous answers from server
+        const response = await fetch(`/api/sessions/${savedProgress.sessionId}/resume`);
+
+        if (!response.ok) {
           // If session doesn't exist anymore, start fresh
           clearProgress();
-          setPhase('role-selection');
-        })
-        .finally(() => setIsLoading(false));
+          setPhase('participant-entry');
+          return;
+        }
+
+        const data = await response.json();
+
+        // Set all session data from the resume response
+        setRole(data.role);
+        setSessionId(savedProgress.sessionId);
+        setLanguage(data.language as Locale || savedProgress.language as Locale);
+
+        // Load questions from the server response
+        let processedQuestions = data.questions as Question[];
+        processedQuestions = processedQuestions.map(q => {
+          if (q.randomize && q.options) {
+            return {
+              ...q,
+              options: [...q.options].sort(() => Math.random() - 0.5)
+            };
+          }
+          return q;
+        });
+        setQuestions(processedQuestions);
+
+        // Merge server answers with any local answers that may not have synced
+        const mergedAnswers = { ...data.answers, ...savedProgress.answers };
+        setAnswers(mergedAnswers);
+
+        // Use the currentIndex from server (which accounts for answered questions)
+        setCurrentIndex(data.currentIndex ?? savedProgress.currentIndex ?? 0);
+
+        setPhase('survey');
+      } catch (error) {
+        console.error('Error resuming progress:', error);
+        // If session doesn't exist anymore, start fresh
+        clearProgress();
+        setPhase('participant-entry');
+      } finally {
+        setIsLoading(false);
+      }
     }
   }, [savedProgress]);
 
@@ -405,47 +433,48 @@ export function SurveyContainer() {
     }
   }, [language, participantName, participantPhone, participantHash]);
 
-  // Handle answer submission
+  // Handle answer submission - LOCAL-FIRST for guaranteed delivery
   const handleAnswer = useCallback(async (value: unknown) => {
     if (!currentQuestion) return;
 
     const timeTaken = Math.round((Date.now() - questionStartTime) / 1000);
+    const timestamp = Date.now();
     const newAnswers = { ...answers, [currentQuestion.id]: value };
     setAnswers(newAnswers);
 
     // Submit to API
     if (sessionId) {
-      const responseData = {
+      const responseId = `${sessionId}_${currentQuestion.id}_${timestamp}`;
+
+      // ALWAYS queue locally first for guaranteed delivery
+      await queueResponse({
         sessionId,
         questionId: currentQuestion.id,
         value,
-        timeTaken
-      };
+        timestamp
+      });
 
-      if (offline) {
-        // Queue for later sync
-        await queueResponse({
-          sessionId,
-          questionId: currentQuestion.id,
-          value,
-          timestamp: Date.now()
-        });
-      } else {
+      // Then attempt immediate sync if online
+      if (!offline) {
         try {
-          await fetch('/api/responses', {
+          const res = await fetch('/api/responses', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(responseData),
+            body: JSON.stringify({
+              sessionId,
+              questionId: currentQuestion.id,
+              value,
+              timeTaken
+            }),
           });
+
+          if (res.ok) {
+            // Mark as synced only on successful API response
+            await markResponseSynced(responseId);
+          }
         } catch (error) {
           console.error('Error submitting response:', error);
-          // Queue for later sync
-          await queueResponse({
-            sessionId,
-            questionId: currentQuestion.id,
-            value,
-            timestamp: Date.now()
-          });
+          // Response is already queued locally, will sync later
         }
       }
     }
@@ -456,23 +485,49 @@ export function SurveyContainer() {
     if (currentIndex < visibleQuestions.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
-      // Complete the survey
+      // Complete the survey with retry logic
       const responseTime = Math.round((Date.now() - startTime) / 1000);
 
       if (sessionId) {
-        try {
-          // Sync any pending responses first
-          if (!offline) {
+        // Sync any pending responses first
+        if (!offline) {
+          try {
             await syncPendingResponses();
+          } catch (e) {
+            console.error('Error syncing pending responses:', e);
           }
+        }
 
-          await fetch(`/api/sessions/${sessionId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ complete: true, responseTime }),
-          });
-        } catch (error) {
-          console.error('Error completing session:', error);
+        // Complete session with retry logic (up to 3 attempts with exponential backoff)
+        let completed = false;
+        for (let attempt = 0; attempt < 3 && !completed; attempt++) {
+          try {
+            const res = await fetch(`/api/sessions/${sessionId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ complete: true, responseTime }),
+            });
+            if (res.ok) {
+              completed = true;
+            } else {
+              throw new Error(`HTTP ${res.status}`);
+            }
+          } catch (error) {
+            console.error(`Error completing session (attempt ${attempt + 1}):`, error);
+            if (attempt < 2) {
+              // Wait before retry: 1s, 2s
+              await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            }
+          }
+        }
+
+        if (!completed) {
+          // Store completion request locally for later retry
+          localStorage.setItem(`pending_completion_${sessionId}`, JSON.stringify({
+            sessionId,
+            responseTime,
+            timestamp: Date.now()
+          }));
         }
       }
 

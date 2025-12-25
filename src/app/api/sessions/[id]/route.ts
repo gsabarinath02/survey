@@ -99,7 +99,9 @@ export async function GET(
                 responseTime: session.responseTime,
                 isValid: session.isValid,
                 sourceCode: session.sourceCode,
-                deviceInfo: session.deviceInfo ? JSON.parse(session.deviceInfo) : null
+                deviceInfo: session.deviceInfo ? JSON.parse(session.deviceInfo) : null,
+                participantName: session.participantName,
+                participantPhone: session.participantPhone
             },
             responseCount: session.responses.length,
             sections,
