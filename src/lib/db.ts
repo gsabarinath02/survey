@@ -1,14 +1,23 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
-import path from 'path';
 
 declare global {
   // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
 }
 
-// Resolve database path relative to project root
-const dbPath = path.resolve(process.cwd(), 'dev.db');
+// Get database path from environment variable or use default
+function getDatabasePath(): string {
+  const dbUrl = process.env.DATABASE_URL;
+  if (dbUrl) {
+    // Remove 'file:' prefix if present
+    return dbUrl.replace(/^file:/, '');
+  }
+  // Default for local development
+  return process.cwd() + '/dev.db';
+}
+
+const dbPath = getDatabasePath();
 
 const adapter = new PrismaBetterSqlite3({
   url: dbPath
@@ -21,4 +30,3 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export default prisma;
-
