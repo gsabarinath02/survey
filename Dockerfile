@@ -50,6 +50,10 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
+# Copy startup script BEFORE changing ownership
+COPY --from=builder /app/start.sh ./start.sh
+RUN chmod +x start.sh
+
 # Create data directory for SQLite persistence with proper permissions
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 RUN chown -R nextjs:nodejs /app
@@ -63,11 +67,6 @@ EXPOSE 3000
 # Environment variables for runtime
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-
-# Copy startup script and migrations
-COPY --from=builder /app/prisma/migrations ./prisma/migrations
-COPY start.sh ./start.sh
-RUN chmod +x start.sh
 
 # Health check to ensure container is responding
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
