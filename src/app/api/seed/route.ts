@@ -67,9 +67,65 @@ export async function POST(request: NextRequest) {
     }
 }
 
-// GET /api/seed - Check seed status
-export async function GET() {
+// GET /api/seed - Check seed status or seed if secret is provided
+export async function GET(request: NextRequest) {
     try {
+        const { searchParams } = new URL(request.url);
+        const secret = searchParams.get('secret');
+
+        // If secret is provided, seed the database (same as POST)
+        if (secret) {
+            const expectedSecret = process.env.TOKEN_SECRET || 'nurse-survey-secret-2024';
+            if (secret !== expectedSecret) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            }
+
+            // Check if questions already exist
+            const existingCount = await prisma.question.count();
+            if (existingCount > 0) {
+                return NextResponse.json({
+                    message: 'Questions already exist',
+                    count: existingCount
+                });
+            }
+
+            const allQuestions = [...nurseQuestions, ...doctorQuestions];
+
+            // Insert all questions
+            let insertedCount = 0;
+            for (const q of allQuestions) {
+                const id = `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                await prisma.question.create({
+                    data: {
+                        id,
+                        externalId: q.externalId,
+                        role: q.role,
+                        section: q.section,
+                        sectionOrder: q.sectionOrder,
+                        order: q.order,
+                        text: q.text,
+                        subText: q.subText || null,
+                        type: q.type,
+                        options: q.options ? JSON.stringify(q.options) : null,
+                        required: q.required ?? true,
+                        isActive: true,
+                        conditions: q.conditions ? JSON.stringify(q.conditions) : null,
+                        config: q.config ? JSON.stringify(q.config) : null,
+                        updatedAt: new Date(),
+                    }
+                });
+                insertedCount++;
+            }
+
+            return NextResponse.json({
+                success: true,
+                message: `Seeded ${insertedCount} questions`,
+                nurseCount: nurseQuestions.length,
+                doctorCount: doctorQuestions.length
+            });
+        }
+
+        // Just check status if no secret
         const count = await prisma.question.count();
         return NextResponse.json({
             questionCount: count,
@@ -77,7 +133,7 @@ export async function GET() {
         });
     } catch (error) {
         return NextResponse.json(
-            { error: 'Failed to check seed status', details: String(error) },
+            { error: 'Failed to seed database', details: String(error) },
             { status: 500 }
         );
     }
