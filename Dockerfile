@@ -50,8 +50,9 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
-# Copy startup script BEFORE changing ownership
+# Copy startup script and init.sql BEFORE changing ownership
 COPY --from=builder /app/start.sh ./start.sh
+COPY --from=builder /app/init.sql ./init.sql
 RUN chmod +x start.sh
 
 # Create data directory for SQLite persistence with proper permissions
