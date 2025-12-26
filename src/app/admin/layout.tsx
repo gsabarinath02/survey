@@ -18,7 +18,8 @@ import {
     Activity,
     GitBranch,
     PieChart,
-    UserSearch
+    UserSearch,
+    Play
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -29,6 +30,7 @@ interface AdminLayoutProps {
 const navItems = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/realtime', label: 'Real-Time', icon: Activity },
+    { href: '/admin/test', label: 'Test Mode', icon: Play },
     { href: '/admin/questions', label: 'Questions', icon: FileQuestion },
     { href: '/admin/versions', label: 'Versions', icon: GitBranch },
     { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
