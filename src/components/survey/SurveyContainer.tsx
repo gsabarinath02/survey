@@ -514,9 +514,9 @@ export function SurveyContainer() {
   }, [currentQuestion, answers, sessionId, questionStartTime, offline]);
 
   // Navigate to next question
-  const handleNext = useCallback(async () => {
-    // Validate required questions before proceeding
-    if (currentQuestion && currentQuestion.required && currentQuestion.type !== 'info') {
+  const handleNext = useCallback(async (skipValidation?: boolean) => {
+    // Validate required questions before proceeding (skip if called from auto-advance)
+    if (!skipValidation && currentQuestion && currentQuestion.required && currentQuestion.type !== 'info') {
       const answer = answers[currentQuestion.id];
       if (!isAnswerValid(answer)) {
         // Don't proceed if required question is not answered

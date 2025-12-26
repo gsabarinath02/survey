@@ -26,7 +26,7 @@ interface QuestionCardProps {
   question: Question;
   answer: unknown;
   onAnswer: (value: unknown) => void;
-  onNext: () => void;
+  onNext: (skipValidation?: boolean) => void;
 }
 
 interface AnswerWithOther {
@@ -90,7 +90,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
         const max = question.max || 5;
         if (num >= min && num <= max) {
           onAnswer(num);
-          setTimeout(onNext, 300);
+          setTimeout(() => onNext(true), 300);
         }
       }
       if (e.key === 'Enter' && answerValue && !showOtherInput) {
@@ -108,7 +108,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
     } else {
       setShowOtherInput(false);
       onAnswer(option);
-      setTimeout(onNext, 250);
+      setTimeout(() => onNext(true), 250);
     }
   };
 
@@ -269,7 +269,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
                   key={option}
                   onClick={() => {
                     onAnswer(option === 'Yes');
-                    setTimeout(onNext, 250);
+                    setTimeout(() => onNext(true), 250);
                   }}
                   className={clsx(
                     "flex-1 p-6 rounded-2xl text-center text-xl font-bold transition-all border active:scale-95",
@@ -339,7 +339,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
 
               <motion.button
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                onClick={onNext}
+                onClick={() => onNext()}
                 disabled={(showOtherInput && !otherText.trim()) || (question.required && (!Array.isArray(answerValue) || answerValue.length === 0))}
                 className="mt-6 w-full bg-slate-100 disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 font-bold py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-base shadow-lg shadow-white/10"
               >
@@ -365,7 +365,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
                         transition={{ delay: i * 0.05 }}
                         onClick={() => {
                           onAnswer(value);
-                          setTimeout(onNext, 300);
+                          setTimeout(() => onNext(true), 300);
                         }}
                         className={clsx(
                           "flex-1 aspect-square max-w-16 rounded-xl text-xl font-bold transition-all border flex items-center justify-center",
@@ -420,7 +420,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
                 )}
               </div>
               <button
-                onClick={onNext}
+                onClick={() => onNext()}
                 disabled={question.required && answerValue === undefined}
                 className="w-full bg-slate-100 disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 font-bold py-4 rounded-xl transition-all active:scale-95 shadow-lg shadow-white/10"
               >
@@ -438,7 +438,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
                 placeholder={question.type === 'text' ? "Type here..." : "Tap mic to speak or type your response..."}
               />
               <button
-                onClick={onNext}
+                onClick={() => onNext()}
                 disabled={question.required && !answerValue}
                 className="mt-6 w-full bg-slate-100 disabled:bg-slate-800 disabled:text-slate-600 text-slate-900 font-bold py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-base shadow-lg shadow-white/10"
               >
@@ -450,7 +450,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
           {/* Info type - just display text with continue button */}
           {question.type === 'info' && (
             <button
-              onClick={onNext}
+              onClick={() => onNext()}
               className="w-full bg-cyan-500 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
             >
               Continue <ArrowRight size={18} />
