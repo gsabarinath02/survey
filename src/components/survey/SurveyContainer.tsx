@@ -479,36 +479,43 @@ export function SurveyContainer() {
     if (sessionId) {
       const responseId = `${sessionId}_${currentQuestion.id}_${timestamp}`;
 
-      // ALWAYS queue locally first for guaranteed delivery
-      await queueResponse({
+      // Queue locally first for guaranteed delivery (synchronous operation)
+      queueResponse({
         sessionId,
         questionId: currentQuestion.id,
         value,
         timestamp
-      });
+      }).catch(err => console.error('Error queuing response:', err));
 
-      // Then attempt immediate sync if online
+      // Also store in localStorage as a backup (synchronous, more reliable)
+      try {
+        const backupKey = `response_backup_${sessionId}`;
+        const backupData = JSON.parse(localStorage.getItem(backupKey) || '{}');
+        backupData[currentQuestion.id] = { value, timeTaken, timestamp };
+        localStorage.setItem(backupKey, JSON.stringify(backupData));
+      } catch (e) {
+        console.error('Error saving backup:', e);
+      }
+
+      // Then attempt immediate sync if online (fire and forget)
       if (!offline) {
-        try {
-          const res = await fetch('/api/responses', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sessionId,
-              questionId: currentQuestion.id,
-              value,
-              timeTaken
-            }),
-          });
-
+        fetch('/api/responses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            questionId: currentQuestion.id,
+            value,
+            timeTaken
+          }),
+        }).then(res => {
           if (res.ok) {
-            // Mark as synced only on successful API response
-            await markResponseSynced(responseId);
+            markResponseSynced(responseId);
           }
-        } catch (error) {
+        }).catch(error => {
           console.error('Error submitting response:', error);
           // Response is already queued locally, will sync later
-        }
+        });
       }
     }
   }, [currentQuestion, answers, sessionId, questionStartTime, offline]);
@@ -531,7 +538,42 @@ export function SurveyContainer() {
       const responseTime = Math.round((Date.now() - startTime) / 1000);
 
       if (sessionId) {
-        // Sync any pending responses first
+        // Sync all responses from localStorage backup first
+        try {
+          const backupKey = `response_backup_${sessionId}`;
+          const backupData = JSON.parse(localStorage.getItem(backupKey) || '{}');
+          const questionIds = Object.keys(backupData);
+
+          console.log(`Syncing ${questionIds.length} responses from backup...`);
+
+          // Send all backup responses to ensure nothing is missed
+          await Promise.all(
+            questionIds.map(async (questionId) => {
+              const { value, timeTaken } = backupData[questionId];
+              try {
+                await fetch('/api/responses', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    sessionId,
+                    questionId,
+                    value,
+                    timeTaken
+                  }),
+                });
+              } catch (e) {
+                console.error(`Failed to sync response for ${questionId}:`, e);
+              }
+            })
+          );
+
+          // Clear the backup after successful sync
+          localStorage.removeItem(backupKey);
+        } catch (e) {
+          console.error('Error syncing backup responses:', e);
+        }
+
+        // Also sync any pending responses from IndexedDB
         if (!offline) {
           try {
             await syncPendingResponses();
