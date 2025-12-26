@@ -47,7 +47,7 @@ export function QuestionPreview({ question, isOpen, onClose }: QuestionPreviewPr
             : undefined,
     };
 
-    const handlePreviewAnswer = (value: unknown) => {
+    const handlePreviewAnswer = async (value: unknown): Promise<void> => {
         setPreviewAnswer(value);
         // Don't navigate - just show the selection
     };
