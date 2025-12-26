@@ -4,16 +4,18 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install dependencies for native modules
-RUN apk add --no-cache python3 make g++ sqlite
+RUN apk add --no-cache python3 make g++
 
 # Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 
 # Install dependencies
 RUN npm ci --legacy-peer-deps
 
-# Generate Prisma client
+# Generate Prisma client (use dummy URL for build time - actual URL comes from env at runtime)
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 
 # Copy source code
@@ -29,9 +31,6 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install runtime dependencies only
-RUN apk add --no-cache sqlite
-
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -45,18 +44,15 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 
-# Copy Prisma client and required native modules
+# Copy Prisma client
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
-# Copy startup script and init.sql BEFORE changing ownership
+# Copy startup script
 COPY --from=builder /app/start.sh ./start.sh
-COPY --from=builder /app/init.sql ./init.sql
 RUN chmod +x start.sh
 
-# Create data directory for SQLite persistence with proper permissions
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+# Set proper permissions
 RUN chown -R nextjs:nodejs /app
 
 # Switch to non-root user
