@@ -12,7 +12,8 @@ import {
     Check,
     AlertCircle,
     Stethoscope,
-    Heart
+    Heart,
+    GripVertical
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -47,6 +48,10 @@ export default function TestModePage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+    // Drag and drop state
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
     // Fetch questions for the selected role
     useEffect(() => {
@@ -197,6 +202,72 @@ export default function TestModePage() {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     });
+
+    // Drag and drop handlers
+    const handleDragStart = (idx: number) => {
+        setDraggedIndex(idx);
+    };
+
+    const handleDragOver = (e: React.DragEvent, idx: number) => {
+        e.preventDefault();
+        if (draggedIndex !== null && draggedIndex !== idx) {
+            setDragOverIndex(idx);
+        }
+    };
+
+    const handleDragLeave = () => {
+        setDragOverIndex(null);
+    };
+
+    const handleDrop = async (targetIdx: number) => {
+        if (draggedIndex === null || draggedIndex === targetIdx) {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+
+        setIsSaving(true);
+
+        // Create new array with reordered questions
+        const newQuestions = [...questions];
+        const [draggedQuestion] = newQuestions.splice(draggedIndex, 1);
+        newQuestions.splice(targetIdx, 0, draggedQuestion);
+
+        // Calculate new order values for all affected questions
+        const updates = newQuestions.map((q, idx) => ({
+            id: q.id,
+            order: idx + 1
+        }));
+
+        try {
+            await fetch('/api/questions/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates })
+            });
+
+            // Update local state with new order values
+            newQuestions.forEach((q, idx) => {
+                q.order = idx + 1;
+            });
+            setQuestions(newQuestions);
+            setCurrentIndex(targetIdx);
+            setMessage({ type: 'success', text: `Question moved from #${draggedIndex + 1} to #${targetIdx + 1}` });
+        } catch (error) {
+            console.error('Error reordering:', error);
+            setMessage({ type: 'error', text: 'Failed to reorder' });
+        }
+
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+        setIsSaving(false);
+        setTimeout(() => setMessage(null), 3000);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
@@ -422,25 +493,47 @@ export default function TestModePage() {
                         </button>
                     </div>
 
-                    {/* Question List Overview */}
+                    {/* Question List Overview - Draggable */}
                     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-                        <h3 className="text-sm font-medium text-slate-400 mb-3">All Questions</h3>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-medium text-slate-400">All Questions</h3>
+                            <span className="text-xs text-slate-500 flex items-center gap-1">
+                                <GripVertical className="w-3 h-3" />
+                                Drag to reorder
+                            </span>
+                        </div>
                         <div className="flex flex-wrap gap-2">
                             {questions.map((q, idx) => (
-                                <button
+                                <div
                                     key={q.id}
+                                    draggable
+                                    onDragStart={() => handleDragStart(idx)}
+                                    onDragOver={(e) => handleDragOver(e, idx)}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={() => handleDrop(idx)}
+                                    onDragEnd={handleDragEnd}
                                     onClick={() => setCurrentIndex(idx)}
                                     className={clsx(
-                                        "w-8 h-8 rounded-lg text-xs font-bold transition-all",
+                                        "w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-grab active:cursor-grabbing select-none flex items-center justify-center",
                                         idx === currentIndex
-                                            ? "bg-cyan-500 text-white"
-                                            : "bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white"
+                                            ? "bg-cyan-500 text-white ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-900"
+                                            : draggedIndex === idx
+                                                ? "bg-cyan-500/50 text-white opacity-50"
+                                                : dragOverIndex === idx
+                                                    ? "bg-emerald-500 text-white ring-2 ring-emerald-400"
+                                                    : "bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white"
                                     )}
                                 >
                                     {idx + 1}
-                                </button>
+                                </div>
                             ))}
                         </div>
+                        {isSaving && (
+                            <div className="mt-3 flex items-center gap-2 text-sm text-slate-400">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Saving order...
+                            </div>
+                        )}
                     </div>
                 </>
             )}
