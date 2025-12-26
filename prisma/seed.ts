@@ -3,15 +3,14 @@
 
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
-import path from 'path';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 
-const dbPath = path.resolve(__dirname, '..', 'dev.db');
-console.log('Using database at:', dbPath);
+const connectionString = process.env.DATABASE_URL!;
+console.log('Connecting to PostgreSQL database...');
 
-const adapter = new PrismaBetterSqlite3({
-    url: dbPath
-});
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 // Import questions data inline to avoid module resolution issues
 const nurseQuestions = [
