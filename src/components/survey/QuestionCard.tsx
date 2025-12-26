@@ -25,7 +25,7 @@ export interface Question {
 interface QuestionCardProps {
   question: Question;
   answer: unknown;
-  onAnswer: (value: unknown) => void;
+  onAnswer: (value: unknown) => Promise<void>;
   onNext: (skipValidation?: boolean) => void;
 }
 
@@ -89,8 +89,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
         const min = question.min || 1;
         const max = question.max || 5;
         if (num >= min && num <= max) {
-          onAnswer(num);
-          setTimeout(() => onNext(true), 300);
+          onAnswer(num).then(() => onNext(true));
         }
       }
       if (e.key === 'Enter' && answerValue && !showOtherInput) {
@@ -101,14 +100,14 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [question, answerValue, onAnswer, onNext, showOtherInput]);
 
-  const handleChoiceSelect = (option: string) => {
+  const handleChoiceSelect = async (option: string) => {
     if (option === 'Other') {
       setShowOtherInput(true);
-      onAnswer({ selected: option, otherText: otherText });
+      await onAnswer({ selected: option, otherText: otherText });
     } else {
       setShowOtherInput(false);
-      onAnswer(option);
-      setTimeout(() => onNext(true), 250);
+      await onAnswer(option);
+      onNext(true);
     }
   };
 
@@ -267,9 +266,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
               {['Yes', 'No'].map((option) => (
                 <button
                   key={option}
-                  onClick={() => {
-                    onAnswer(option === 'Yes');
-                    setTimeout(() => onNext(true), 250);
+                  onClick={async () => {
+                    await onAnswer(option === 'Yes');
+                    onNext(true);
                   }}
                   className={clsx(
                     "flex-1 p-6 rounded-2xl text-center text-xl font-bold transition-all border active:scale-95",
@@ -363,9 +362,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, answer, on
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: i * 0.05 }}
-                        onClick={() => {
-                          onAnswer(value);
-                          setTimeout(() => onNext(true), 300);
+                        onClick={async () => {
+                          await onAnswer(value);
+                          onNext(true);
                         }}
                         className={clsx(
                           "flex-1 aspect-square max-w-16 rounded-xl text-xl font-bold transition-all border flex items-center justify-center",
