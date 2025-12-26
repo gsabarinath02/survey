@@ -11,7 +11,8 @@ import {
     Save,
     X,
     Plus,
-    Eye
+    Eye,
+    GripVertical
 } from 'lucide-react';
 import { QuestionPreview } from '@/components/survey/QuestionPreview';
 import { clsx } from 'clsx';
@@ -70,6 +71,11 @@ export default function QuestionsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null);
+
+    // Drag and drop state
+    const [draggedId, setDraggedId] = useState<string | null>(null);
+    const [dragOverId, setDragOverId] = useState<string | null>(null);
+    const [isReordering, setIsReordering] = useState(false);
 
     // Get unique sections
     const sections = [...new Set(questions.map(q => q.section).filter(Boolean))];
@@ -218,6 +224,90 @@ export default function QuestionsPage() {
         }
     };
 
+    // Drag and drop handlers
+    const handleDragStart = (e: React.DragEvent, questionId: string) => {
+        setDraggedId(questionId);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', questionId);
+    };
+
+    const handleDragOver = (e: React.DragEvent, questionId: string) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (draggedId && draggedId !== questionId) {
+            setDragOverId(questionId);
+        }
+    };
+
+    const handleDragEnd = () => {
+        setDraggedId(null);
+        setDragOverId(null);
+    };
+
+    const handleDrop = async (e: React.DragEvent, targetId: string) => {
+        e.preventDefault();
+
+        if (!draggedId || draggedId === targetId) {
+            handleDragEnd();
+            return;
+        }
+
+        // Find indices in filtered list
+        const draggedIndex = filteredQuestions.findIndex(q => q.id === draggedId);
+        const targetIndex = filteredQuestions.findIndex(q => q.id === targetId);
+
+        if (draggedIndex === -1 || targetIndex === -1) {
+            handleDragEnd();
+            return;
+        }
+
+        // Create a copy of the filtered list and reorder
+        const reordered = [...filteredQuestions];
+        const [draggedItem] = reordered.splice(draggedIndex, 1);
+        reordered.splice(targetIndex, 0, draggedItem);
+
+        // Update order values
+        const updatedItems = reordered.map((q, index) => ({
+            ...q,
+            order: index + 1
+        }));
+
+        // Update local state immediately for responsive UI
+        setFilteredQuestions(updatedItems);
+
+        // Prepare data for API
+        const reorderData = updatedItems.map((q, index) => ({
+            id: q.id,
+            order: index + 1
+        }));
+
+        // Save to API
+        setIsReordering(true);
+        try {
+            const res = await fetch('/api/questions/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: reorderData }),
+            });
+
+            if (!res.ok) {
+                // Revert on error
+                await fetchQuestions();
+                alert('Failed to save new order');
+            } else {
+                // Refresh to get updated data
+                await fetchQuestions();
+            }
+        } catch (err) {
+            console.error('Error reordering questions:', err);
+            await fetchQuestions();
+            alert('Failed to save new order');
+        } finally {
+            setIsReordering(false);
+            handleDragEnd();
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -292,19 +382,45 @@ export default function QuestionsPage() {
 
             {/* Questions List */}
             <div className="space-y-3">
+                {isReordering && (
+                    <div className="flex items-center justify-center py-2 text-cyan-400 text-sm">
+                        <div className="animate-spin w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full mr-2" />
+                        Saving new order...
+                    </div>
+                )}
                 {filteredQuestions.map((question, idx) => (
                     <motion.div
                         key={question.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.02 }}
-                        className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, question.id)}
+                        onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, question.id)}
+                        onDragEnd={handleDragEnd}
+                        onDrop={(e) => handleDrop(e as unknown as React.DragEvent, question.id)}
+                        className={clsx(
+                            "bg-slate-800 border rounded-xl overflow-hidden transition-all",
+                            draggedId === question.id
+                                ? "opacity-50 border-cyan-500 scale-[0.98]"
+                                : dragOverId === question.id
+                                    ? "border-cyan-400 ring-2 ring-cyan-400/30"
+                                    : "border-slate-700"
+                        )}
                     >
                         {/* Question Header */}
                         <div
                             className="p-4 flex items-start justify-between cursor-pointer hover:bg-slate-700/30 transition-colors"
                             onClick={() => setExpandedId(expandedId === question.id ? null : question.id)}
                         >
+                            {/* Drag Handle */}
+                            <div
+                                className="flex items-center mr-3 cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 transition-colors"
+                                title="Drag to reorder"
+                                onMouseDown={(e) => e.stopPropagation()}
+                            >
+                                <GripVertical className="w-5 h-5" />
+                            </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                     <span className={clsx(
