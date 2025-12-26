@@ -10,7 +10,8 @@ interface ReorderItem {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { items } = body as { items: ReorderItem[] };
+        // Accept both 'items' and 'updates' for backward compatibility
+        const items = (body.items || body.updates) as ReorderItem[];
 
         if (!items || !Array.isArray(items)) {
             return NextResponse.json(
