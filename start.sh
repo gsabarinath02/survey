@@ -1,8 +1,8 @@
 #!/bin/sh
 
-# Run Prisma migrations/db push (creates tables if not exist)
+# Run Prisma db push to create tables if they don't exist
 echo "Running database migrations..."
-npx prisma db push --skip-generate
+npx prisma db push --accept-data-loss
 
 # Start the Next.js server
 echo "Starting server..."
