@@ -11,7 +11,7 @@ import { AlreadyCompleted } from './AlreadyCompleted';
 import { ArrowLeft, Loader2, Globe, WifiOff } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generateFingerprint } from '@/lib/fingerprint';
-import { saveProgress, loadProgress, clearProgress, queueResponse, syncPendingResponses, isOffline, setupOnlineSync, markResponseSynced } from '@/lib/storage';
+import { saveProgress, loadProgress, clearProgress, syncPendingResponses, isOffline, setupOnlineSync } from '@/lib/storage';
 import { SUPPORTED_LOCALES, getLocale, setLocale, t, type Locale } from '@/lib/i18n';
 
 interface Question {
@@ -466,7 +466,7 @@ export function SurveyContainer() {
     }
   }, [language, participantName, participantPhone, participantHash]);
 
-  // Handle answer submission - LOCAL-FIRST for guaranteed delivery
+  // Handle answer submission - SYNCHRONOUS for guaranteed delivery
   const handleAnswer = useCallback(async (value: unknown) => {
     if (!currentQuestion) return;
 
@@ -477,17 +477,7 @@ export function SurveyContainer() {
 
     // Submit to API
     if (sessionId) {
-      const responseId = `${sessionId}_${currentQuestion.id}_${timestamp}`;
-
-      // Queue locally first for guaranteed delivery (synchronous operation)
-      queueResponse({
-        sessionId,
-        questionId: currentQuestion.id,
-        value,
-        timestamp
-      }).catch(err => console.error('Error queuing response:', err));
-
-      // Also store in localStorage as a backup (synchronous, more reliable)
+      // Store in localStorage as a backup first (synchronous, reliable)
       try {
         const backupKey = `response_backup_${sessionId}`;
         const backupData = JSON.parse(localStorage.getItem(backupKey) || '{}');
@@ -497,25 +487,37 @@ export function SurveyContainer() {
         console.error('Error saving backup:', e);
       }
 
-      // Then attempt immediate sync if online (fire and forget)
+      // Immediately sync to server (await to ensure it completes)
       if (!offline) {
-        fetch('/api/responses', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            questionId: currentQuestion.id,
-            value,
-            timeTaken
-          }),
-        }).then(res => {
+        try {
+          const res = await fetch('/api/responses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId,
+              questionId: currentQuestion.id,
+              value,
+              timeTaken
+            }),
+          });
+
           if (res.ok) {
-            markResponseSynced(responseId);
+            // Remove from backup on successful save
+            try {
+              const backupKey = `response_backup_${sessionId}`;
+              const backupData = JSON.parse(localStorage.getItem(backupKey) || '{}');
+              delete backupData[currentQuestion.id];
+              localStorage.setItem(backupKey, JSON.stringify(backupData));
+            } catch (e) {
+              // Ignore backup cleanup errors
+            }
+          } else {
+            console.error('Response API returned error:', res.status);
           }
-        }).catch(error => {
+        } catch (error) {
           console.error('Error submitting response:', error);
-          // Response is already queued locally, will sync later
-        });
+          // Response is saved in localStorage, will sync on completion
+        }
       }
     }
   }, [currentQuestion, answers, sessionId, questionStartTime, offline]);
