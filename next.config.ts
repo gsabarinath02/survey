@@ -15,13 +15,7 @@ const nextConfig: NextConfig = {
 
   // Image optimization
   images: {
-    unoptimized: true, // For Docker deployment with SQLite
-  },
-
-  // Webpack config for better-sqlite3 compatibility
-  webpack: (config) => {
-    config.externals = [...(config.externals || []), 'better-sqlite3'];
-    return config;
+    unoptimized: true, // For Docker deployment
   },
 };
 

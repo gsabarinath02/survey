@@ -13,7 +13,7 @@ A comprehensive survey platform for validating the AI Nurse Copilot concept with
 ## 📋 Tech Stack
 
 - **Framework**: Next.js 16
-- **Database**: SQLite with Prisma ORM
+- **Database**: PostgreSQL with Prisma ORM
 - **Styling**: Tailwind CSS
 - **Animation**: Framer Motion
 - **Icons**: Lucide React
@@ -66,7 +66,7 @@ docker-compose exec survey-app npx tsx prisma/seed.ts
 Create a `.env` file or pass via docker-compose:
 
 ```env
-DATABASE_URL=file:./data/survey.db
+DATABASE_URL=postgresql://user:password@host:5432/dbname
 ADMIN_PASSWORD=your-secure-password
 TOKEN_SECRET=your-secret-key
 ```

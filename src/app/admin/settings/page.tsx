@@ -173,7 +173,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="flex justify-between py-2 border-b border-slate-700">
                         <span className="text-slate-400">Database</span>
-                        <span className="text-white">SQLite (Prisma)</span>
+                        <span className="text-white">PostgreSQL (Prisma)</span>
                     </div>
                     <div className="flex justify-between py-2">
                         <span className="text-slate-400">Framework</span>

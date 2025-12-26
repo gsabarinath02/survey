@@ -11,12 +11,9 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=file:/app/data/survey.db
+      - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - TOKEN_SECRET=${TOKEN_SECRET:-nurse-survey-secret-2024}
-    volumes:
-      # Persist SQLite database across container restarts
-      - survey-data:/app/data
     networks:
       - nurse-survey-network
     healthcheck:
@@ -38,10 +35,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-volumes:
-  survey-data:
-    driver: local
 
 networks:
   nurse-survey-network:
