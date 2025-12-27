@@ -533,6 +533,57 @@ export function SurveyContainer() {
       }
     }
 
+    // ALWAYS save the current answer to API before navigating (ensures nothing is lost)
+    if (currentQuestion && sessionId && currentQuestion.type !== 'info') {
+      const answer = answers[currentQuestion.id];
+      if (answer !== undefined) {
+        const timeTaken = Math.round((Date.now() - questionStartTime) / 1000);
+
+        // Save to localStorage backup first
+        try {
+          const backupKey = `response_backup_${sessionId}`;
+          const backupData = JSON.parse(localStorage.getItem(backupKey) || '{}');
+          backupData[currentQuestion.id] = { value: answer, timeTaken, timestamp: Date.now() };
+          localStorage.setItem(backupKey, JSON.stringify(backupData));
+        } catch (e) {
+          console.error('Error saving backup:', e);
+        }
+
+        // Then sync to server (await to ensure it's saved)
+        if (!offline) {
+          try {
+            const res = await fetch('/api/responses', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sessionId,
+                questionId: currentQuestion.id,
+                value: answer,
+                timeTaken
+              }),
+            });
+
+            if (res.ok) {
+              // Remove from backup on successful save
+              try {
+                const backupKey = `response_backup_${sessionId}`;
+                const backupData = JSON.parse(localStorage.getItem(backupKey) || '{}');
+                delete backupData[currentQuestion.id];
+                localStorage.setItem(backupKey, JSON.stringify(backupData));
+              } catch (e) {
+                // Ignore backup cleanup errors
+              }
+            } else {
+              console.error('Response API error in handleNext:', res.status);
+            }
+          } catch (error) {
+            console.error('Error saving response in handleNext:', error);
+            // Response is in backup, will sync on completion
+          }
+        }
+      }
+    }
+
     if (currentIndex < visibleQuestions.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
@@ -620,7 +671,7 @@ export function SurveyContainer() {
       clearProgress();
       setPhase('completed');
     }
-  }, [currentIndex, visibleQuestions.length, sessionId, startTime, offline, currentQuestion, answers, isAnswerValid]);
+  }, [currentIndex, visibleQuestions.length, sessionId, startTime, offline, currentQuestion, answers, isAnswerValid, questionStartTime]);
 
   // Navigate to previous question
   const handlePrevious = useCallback(() => {
