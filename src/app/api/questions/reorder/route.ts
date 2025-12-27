@@ -11,7 +11,7 @@ export async function GET() {
     try {
         const questions = await prisma.question.findMany({
             select: { id: true, text: true, order: true, sectionOrder: true, section: true },
-            orderBy: [{ sectionOrder: 'asc' }, { order: 'asc' }],
+            orderBy: { order: 'asc' },
             take: 20
         });
         return NextResponse.json({ questions });

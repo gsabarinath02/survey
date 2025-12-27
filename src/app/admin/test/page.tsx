@@ -61,13 +61,8 @@ export default function TestModePage() {
                 const response = await fetch(`/api/questions?role=${role}`);
                 const data = await response.json();
                 if (data.questions) {
-                    // Sort by sectionOrder, then order
-                    const sorted = [...data.questions].sort((a, b) => {
-                        if (a.sectionOrder !== b.sectionOrder) {
-                            return a.sectionOrder - b.sectionOrder;
-                        }
-                        return a.order - b.order;
-                    });
+                    // Sort by order only (allows global reordering across sections)
+                    const sorted = [...data.questions].sort((a, b) => a.order - b.order);
                     setQuestions(sorted);
                     setCurrentIndex(0);
                 }

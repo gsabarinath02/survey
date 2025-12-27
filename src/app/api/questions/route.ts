@@ -23,10 +23,7 @@ export async function GET(request: NextRequest) {
 
         const questions = await prisma.question.findMany({
             where,
-            orderBy: [
-                { sectionOrder: 'asc' },
-                { order: 'asc' }
-            ]
+            orderBy: { order: 'asc' }  // Sort by order only (enables global reordering)
         });
 
         // Parse JSON fields
