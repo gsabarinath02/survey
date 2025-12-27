@@ -109,7 +109,7 @@ export default function TestModePage() {
         // If same section, swap orders
         if (current.section === previous.section) {
             try {
-                await fetch('/api/questions/reorder', {
+                const response = await fetch('/api/questions/reorder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -119,6 +119,10 @@ export default function TestModePage() {
                         ]
                     })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
 
                 // Update local state
                 const newQuestions = [...questions];
@@ -131,7 +135,7 @@ export default function TestModePage() {
                 setMessage({ type: 'success', text: 'Question moved up' });
             } catch (error) {
                 console.error('Error reordering:', error);
-                setMessage({ type: 'error', text: 'Failed to reorder' });
+                setMessage({ type: 'error', text: `Failed to reorder: ${error}` });
             }
         }
         setIsSaving(false);
@@ -149,7 +153,7 @@ export default function TestModePage() {
         // If same section, swap orders
         if (current.section === next.section) {
             try {
-                await fetch('/api/questions/reorder', {
+                const response = await fetch('/api/questions/reorder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -159,6 +163,10 @@ export default function TestModePage() {
                         ]
                     })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
 
                 // Update local state
                 const newQuestions = [...questions];
@@ -171,7 +179,7 @@ export default function TestModePage() {
                 setMessage({ type: 'success', text: 'Question moved down' });
             } catch (error) {
                 console.error('Error reordering:', error);
-                setMessage({ type: 'error', text: 'Failed to reorder' });
+                setMessage({ type: 'error', text: `Failed to reorder: ${error}` });
             }
         }
         setIsSaving(false);
@@ -240,11 +248,16 @@ export default function TestModePage() {
         }));
 
         try {
-            await fetch('/api/questions/reorder', {
+            const response = await fetch('/api/questions/reorder', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ updates })
             });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
 
             // Update local state with new order values
             newQuestions.forEach((q, idx) => {
@@ -255,7 +268,7 @@ export default function TestModePage() {
             setMessage({ type: 'success', text: `Question moved from #${draggedIndex + 1} to #${targetIdx + 1}` });
         } catch (error) {
             console.error('Error reordering:', error);
-            setMessage({ type: 'error', text: 'Failed to reorder' });
+            setMessage({ type: 'error', text: `Failed to reorder: ${error}` });
         }
 
         setDraggedIndex(null);
