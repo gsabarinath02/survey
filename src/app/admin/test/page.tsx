@@ -254,9 +254,10 @@ export default function TestModePage() {
                 body: JSON.stringify({ updates })
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `HTTP ${response.status}`);
+                throw new Error(data.error || `HTTP ${response.status}`);
             }
 
             // Update local state with new order values
@@ -265,7 +266,7 @@ export default function TestModePage() {
             });
             setQuestions(newQuestions);
             setCurrentIndex(targetIdx);
-            setMessage({ type: 'success', text: `Question moved from #${draggedIndex + 1} to #${targetIdx + 1}` });
+            setMessage({ type: 'success', text: `Moved #${draggedIndex + 1} → #${targetIdx + 1} (${data.updated}/${data.total} verified)` });
         } catch (error) {
             console.error('Error reordering:', error);
             setMessage({ type: 'error', text: `Failed to reorder: ${error}` });
