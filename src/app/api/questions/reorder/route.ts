@@ -20,17 +20,32 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Update all questions in a transaction
-        await prisma.$transaction(
-            items.map(item =>
-                prisma.question.update({
+        console.log(`Reordering ${items.length} questions...`);
+
+        // Update each question sequentially to ensure persistence
+        let successCount = 0;
+        for (const item of items) {
+            try {
+                await prisma.question.update({
                     where: { id: item.id },
                     data: { order: item.order }
-                })
-            )
-        );
+                });
+                successCount++;
+            } catch (updateError) {
+                console.error(`Failed to update question ${item.id}:`, updateError);
+            }
+        }
 
-        return NextResponse.json({ success: true });
+        console.log(`Successfully updated ${successCount}/${items.length} questions`);
+
+        if (successCount === 0) {
+            return NextResponse.json(
+                { error: 'Failed to update any questions' },
+                { status: 500 }
+            );
+        }
+
+        return NextResponse.json({ success: true, updated: successCount });
     } catch (error) {
         console.error('Error reordering questions:', error);
         return NextResponse.json(
