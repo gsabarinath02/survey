@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { RoleSelection } from './RoleSelection';
 import { SectionProgress } from './SectionProgress';
@@ -55,6 +55,7 @@ export function SurveyContainer() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const answersRef = useRef<Record<string, unknown>>({}); // Sync ref for fast clicks
   const [isLoading, setIsLoading] = useState(false);
   const [startTime] = useState(Date.now());
   const [language, setLanguage] = useState<Locale>('en');
@@ -307,6 +308,7 @@ export function SurveyContainer() {
 
         // Merge server answers with any local answers that may not have synced
         const mergedAnswers = { ...data.answers, ...savedProgress.answers };
+        answersRef.current = mergedAnswers;  // Sync ref
         setAnswers(mergedAnswers);
 
         // Use the currentIndex from server (which accounts for answered questions)
@@ -374,6 +376,7 @@ export function SurveyContainer() {
         if (sessResponse.ok) {
           const sessData = await sessResponse.json();
           setQuestions(sessData.questions || []);
+          answersRef.current = sessData.answers || {};  // Sync ref
           setAnswers(sessData.answers || {});
           setCurrentIndex(sessData.currentIndex || 0);
           setPhase('survey');
@@ -472,6 +475,11 @@ export function SurveyContainer() {
 
     const timeTaken = Math.round((Date.now() - questionStartTime) / 1000);
     const timestamp = Date.now();
+
+    // Update ref FIRST (synchronous, immediate) - this ensures handleNext can read it
+    answersRef.current = { ...answersRef.current, [currentQuestion.id]: value };
+
+    // Then update state for UI re-render
     const newAnswers = { ...answers, [currentQuestion.id]: value };
     setAnswers(newAnswers);
 
@@ -526,7 +534,8 @@ export function SurveyContainer() {
   const handleNext = useCallback(async (skipValidation?: boolean) => {
     // Validate required questions before proceeding (skip if called from auto-advance)
     if (!skipValidation && currentQuestion && currentQuestion.required && currentQuestion.type !== 'info') {
-      const answer = answers[currentQuestion.id];
+      // Use answersRef for latest value (state may be stale on fast clicks)
+      const answer = answersRef.current[currentQuestion.id];
       if (!isAnswerValid(answer)) {
         // Don't proceed if required question is not answered
         return;
@@ -535,7 +544,8 @@ export function SurveyContainer() {
 
     // ALWAYS save the current answer to API before navigating (ensures nothing is lost)
     if (currentQuestion && sessionId && currentQuestion.type !== 'info') {
-      const answer = answers[currentQuestion.id];
+      // Use answersRef for latest value (state may be stale on fast clicks)
+      const answer = answersRef.current[currentQuestion.id];
       if (answer !== undefined) {
         const timeTaken = Math.round((Date.now() - questionStartTime) / 1000);
 
@@ -687,6 +697,7 @@ export function SurveyContainer() {
     setSessionId(null);
     setQuestions([]);
     setCurrentIndex(0);
+    answersRef.current = {};  // Sync ref
     setAnswers({});
     setParticipantName('');
     setParticipantPhone('');
