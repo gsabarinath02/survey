@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Phone, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
+import { User, Phone, ArrowRight, Sparkles, Loader2, Shield } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface ParticipantEntryProps {
@@ -13,20 +13,23 @@ interface ParticipantEntryProps {
 export function ParticipantEntry({ onSubmit, isLoading }: ParticipantEntryProps) {
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
+    const [isAnonymous, setIsAnonymous] = useState(false);
     const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
 
     const validateForm = () => {
+        // No validation needed for anonymous mode
+        if (isAnonymous) {
+            return true;
+        }
+
         const newErrors: { name?: string; phone?: string } = {};
 
-        if (!name.trim()) {
-            newErrors.name = 'Please enter your name';
-        } else if (name.trim().length < 2) {
+        // Both fields are now optional, but if provided, validate them
+        if (name.trim() && name.trim().length < 2) {
             newErrors.name = 'Name must be at least 2 characters';
         }
 
-        if (!phone.trim()) {
-            newErrors.phone = 'Please enter your phone number';
-        } else if (phone.replace(/\D/g, '').length < 10) {
+        if (phone.trim() && phone.replace(/\D/g, '').length < 10) {
             newErrors.phone = 'Please enter a valid 10-digit phone number';
         }
 
@@ -37,14 +40,23 @@ export function ParticipantEntry({ onSubmit, isLoading }: ParticipantEntryProps)
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (validateForm() && !isLoading) {
-            onSubmit(name.trim(), phone.replace(/\D/g, ''));
+            if (isAnonymous) {
+                onSubmit('Anonymous', '');
+            } else {
+                onSubmit(name.trim() || 'Anonymous', phone.replace(/\D/g, ''));
+            }
+        }
+    };
+
+    const handleAnonymous = () => {
+        if (!isLoading) {
+            setIsAnonymous(true);
+            onSubmit('Anonymous', '');
         }
     };
 
     const formatPhone = (value: string) => {
-        // Remove non-digits
         const digits = value.replace(/\D/g, '');
-        // Limit to 10 digits
         return digits.slice(0, 10);
     };
 
@@ -77,7 +89,7 @@ export function ParticipantEntry({ onSubmit, isLoading }: ParticipantEntryProps)
                 </h1>
 
                 <p className="text-slate-400 text-base max-w-md mx-auto">
-                    Enter your details to begin. This helps us save your progress if you need to continue later.
+                    Enter your details to save progress, or continue anonymously.
                 </p>
             </motion.div>
 
@@ -90,10 +102,47 @@ export function ParticipantEntry({ onSubmit, isLoading }: ParticipantEntryProps)
                 className="w-full max-w-md relative z-10"
             >
                 <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 sm:p-8">
-                    {/* Name Input */}
-                    <div className="mb-5">
+                    {/* Anonymous Button - Prominent */}
+                    <motion.button
+                        type="button"
+                        onClick={handleAnonymous}
+                        disabled={isLoading}
+                        whileHover={!isLoading ? { scale: 1.02 } : {}}
+                        whileTap={!isLoading ? { scale: 0.98 } : {}}
+                        className={clsx(
+                            'w-full py-4 rounded-xl font-bold text-base mb-6',
+                            'bg-gradient-to-r from-emerald-500 to-teal-500',
+                            'text-white shadow-lg shadow-emerald-500/25',
+                            'flex items-center justify-center gap-3',
+                            'transition-all duration-200',
+                            isLoading
+                                ? 'opacity-70 cursor-wait'
+                                : 'hover:shadow-emerald-500/40 hover:from-emerald-400 hover:to-teal-400'
+                        )}
+                    >
+                        {isLoading && isAnonymous ? (
+                            <>
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                Starting...
+                            </>
+                        ) : (
+                            <>
+                                <Shield className="w-5 h-5" />
+                                Continue Anonymously
+                            </>
+                        )}
+                    </motion.button>
+
+                    <div className="flex items-center gap-4 mb-6">
+                        <div className="flex-1 h-px bg-slate-700" />
+                        <span className="text-xs text-slate-500 uppercase tracking-wider">or provide details</span>
+                        <div className="flex-1 h-px bg-slate-700" />
+                    </div>
+
+                    {/* Name Input - Optional */}
+                    <div className="mb-4">
                         <label className="block text-sm font-medium text-slate-300 mb-2">
-                            Your Name
+                            Your Name <span className="text-slate-500">(optional)</span>
                         </label>
                         <div className="relative">
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
@@ -107,7 +156,7 @@ export function ParticipantEntry({ onSubmit, isLoading }: ParticipantEntryProps)
                                 placeholder="Enter your name"
                                 disabled={isLoading}
                                 className={clsx(
-                                    'w-full pl-12 pr-4 py-4 rounded-xl bg-slate-800/50 text-white placeholder-slate-500',
+                                    'w-full pl-12 pr-4 py-3 rounded-xl bg-slate-800/50 text-white placeholder-slate-500',
                                     'border transition-all duration-200',
                                     'focus:outline-none focus:ring-2 focus:ring-cyan-500/50',
                                     errors.name
@@ -128,10 +177,10 @@ export function ParticipantEntry({ onSubmit, isLoading }: ParticipantEntryProps)
                         )}
                     </div>
 
-                    {/* Phone Input */}
+                    {/* Phone Input - Optional */}
                     <div className="mb-6">
                         <label className="block text-sm font-medium text-slate-300 mb-2">
-                            Phone Number
+                            Phone Number <span className="text-slate-500">(optional)</span>
                         </label>
                         <div className="relative">
                             <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
@@ -145,7 +194,7 @@ export function ParticipantEntry({ onSubmit, isLoading }: ParticipantEntryProps)
                                 placeholder="Enter 10-digit phone"
                                 disabled={isLoading}
                                 className={clsx(
-                                    'w-full pl-12 pr-4 py-4 rounded-xl bg-slate-800/50 text-white placeholder-slate-500',
+                                    'w-full pl-12 pr-4 py-3 rounded-xl bg-slate-800/50 text-white placeholder-slate-500',
                                     'border transition-all duration-200',
                                     'focus:outline-none focus:ring-2 focus:ring-cyan-500/50',
                                     errors.phone
@@ -166,32 +215,32 @@ export function ParticipantEntry({ onSubmit, isLoading }: ParticipantEntryProps)
                         )}
                     </div>
 
-                    {/* Submit Button */}
+                    {/* Submit with Details Button */}
                     <motion.button
                         type="submit"
                         disabled={isLoading}
                         whileHover={!isLoading ? { scale: 1.02 } : {}}
                         whileTap={!isLoading ? { scale: 0.98 } : {}}
                         className={clsx(
-                            'w-full py-4 rounded-xl font-bold text-base',
-                            'bg-gradient-to-r from-cyan-500 to-blue-500',
-                            'text-white shadow-lg shadow-cyan-500/25',
+                            'w-full py-3 rounded-xl font-medium text-base',
+                            'bg-slate-700 border border-slate-600',
+                            'text-slate-200',
                             'flex items-center justify-center gap-2',
                             'transition-all duration-200',
                             isLoading
                                 ? 'opacity-70 cursor-wait'
-                                : 'hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-blue-400'
+                                : 'hover:bg-slate-600 hover:border-slate-500'
                         )}
                     >
-                        {isLoading ? (
+                        {isLoading && !isAnonymous ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
                                 Checking...
                             </>
                         ) : (
                             <>
-                                Continue
-                                <ArrowRight className="w-5 h-5" />
+                                Continue with Details
+                                <ArrowRight className="w-4 h-4" />
                             </>
                         )}
                     </motion.button>
@@ -199,9 +248,10 @@ export function ParticipantEntry({ onSubmit, isLoading }: ParticipantEntryProps)
 
                 {/* Privacy Note */}
                 <p className="mt-6 text-xs text-slate-500 text-center">
-                    Your information is used only to save progress and prevent duplicate entries.
+                    <Shield className="w-3 h-3 inline mr-1" />
+                    Your survey responses are always anonymous.
                     <br />
-                    Your survey responses remain anonymous.
+                    Name/phone is only used to save progress.
                 </p>
             </motion.form>
         </div>

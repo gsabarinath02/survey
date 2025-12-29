@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
                 { role: role },
                 { role: 'both' }
             ];
+
         }
 
         const questions = await prisma.question.findMany({
